@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { User } from '../models/User.model.js'
+import { sendMail } from '../utils/mail.js'
 
 const registerUser = async (req, res, next) => {
     // get data from req.body
@@ -41,6 +42,15 @@ const registerUser = async (req, res, next) => {
         newUser.varificationToken = token;
         await newUser.save();
 
+        const subjectForMail = "This is for varification "
+        const text = `Welcome ${user.email}
+            Thank you for signing up for Mailtrap.
+            Verify your email address by clicking below.
+            ${process.env.BASE_URL}/api/v1/user/verify/${token}
+
+`
+        sendMail({ userEmail: user.email, userSubject: subjectForMail, userText: text });
+
         res.status(201).json({
             message: "User created sucessfully",
             sucess: true,
@@ -58,8 +68,28 @@ const registerUser = async (req, res, next) => {
 
 }
 
-const verifyToken = async(req, res) => {
-    
+const verifyToken = async (req, res) => {
+    const { token } = req.params;
+
+    if (!token) {
+        res.status(400).json({
+            message: "Something went wrong Please SignUp again",
+        })
+    }
+    const user = await User.findOne({ varificationToken: token });
+    if (!user) {
+        res.status(400).json({
+            message: "Something went wrong Please SignUp again",
+        })
+    }
+
+    if (token == user.varificationToken) {
+        user.isVerified = true;
+        user.varificationToken = null
+    }
+
+    await user.save()
+
 }
 
 const login = async (req, res) => {
@@ -117,5 +147,85 @@ const login = async (req, res) => {
     }
 }
 
+const resetPassword = async (req, res) => {
 
-export { login, registerUser }
+    const { email } = req.body
+    if (!email) {
+        res.status(401).json({
+            message: "Please Enter Email"
+        })
+    }
+    const user = User.findOne({ email })
+    if (!user) {
+        res.status(400).json({
+            message: "User not found Please Sign Up",
+        })
+    }
+
+    const token = crypto.randomBytes(32).toString("hex")
+
+    if (!token) {
+        res.status(400).json({
+            message: "Something went wrong while generating token",
+        })
+    }
+
+    user.passwordResetToken = token
+    user.resetPasswordExpires = '10m'
+    const subjectForMail = "This is for varification "
+    const text = `Welcome ${user.email}
+        Reset your password by clicking below.
+        ${process.env.BASE_URL}/api/v1/user/verify/${token}`
+
+    sendMail({ userEmail: user.email, userSubject: subjectForMail, userText: text })
+
+    await user.save()
+}
+
+const changePassword = async (req, res) => {
+    try {
+        const { token } = req.params
+        const { password } = req.body
+
+        if (!token) {
+            res.status(401).json({
+                message: "Link is Expired Please send again"
+            })
+        }
+        if (!password) {
+            res.status(401).json({
+                message: "Please Enter New password"
+            })
+        }
+
+        const user = User.findOne({ passwordResetToken: token })
+
+        if (!user) {
+            res.status(401).json({
+                message: "User Not Exists"
+            })
+        }
+
+        const userToken = await user.passwordResetToken
+        if (token == userToken) {
+            user.password = password
+            user.passwordResetToken = null
+            user.resetPasswordExpires = '0'
+        }
+
+        await user.save()
+
+        res.status(200).json({
+            message: "Password Changed Sucessfully"
+        })
+
+    } catch (err) {
+        res.status(401).json({
+            message: "Unable to change Password",
+            err
+        })
+    }
+}
+
+
+export { login, registerUser, verifyToken, resetPassword, changePassword }
