@@ -33,7 +33,7 @@ const userSchema = new mongoose.Schema(
 
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) next();
-    this.password = await hash(this.password, 10)
+    this.password = hash(this.password, 10)
 })
 
 export const User = mongoose.model("User", userSchema);

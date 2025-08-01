@@ -16,7 +16,7 @@ const registerUser = async (req, res, next) => {
 
     try {
 
-        const { name, email, password } = req.body;
+        const { name, email, password } = req.body;        
         if ((!name || !email || !password)) {
             return res.status(400).json({
                 message: "All feilds are required",
@@ -49,7 +49,7 @@ const registerUser = async (req, res, next) => {
             ${process.env.BASE_URL}/api/v1/user/verify/${token}
 
 `
-        sendMail({ userEmail: user.email, userSubject: subjectForMail, userText: text });
+        // sendMail({ userEmail: user.email, userSubject: subjectForMail, userText: text });
 
         res.status(201).json({
             message: "User created sucessfully",
